@@ -1,11 +1,15 @@
 {
+    "description": "[b]THIS IS AN ENTITY, THE MODEL ALREADY COMES WITH GMOD[/b]\nI had to point this out since it's unavoidable that people will start posting that I ripped this model off or some other dumb misconception, I did none of that, this is just a scripted entity.\n\nSomeone might remember this from the old Toybox, yes I made that and I remade this one as well.\nThis one is better suited for multiplayer, since it doesn't actually block the player physics , but it can still be kicked around.\nPress use on the ball to pick it up.\nThe entity can be found under Spawnmenu > Entities > Fun + Games.\nThis entity also works outside of sandbox, the classname is \"sent_soccerball\" if you want to spawn it in your gamemode.\n\nAnd yes, I know it's called a Football in Europe, but I called it Soccerball to avoid confusion with Americans.\n\nGarrysmod.org edition\n[url=https://garrysmods.org/download/8/soccer-ball][img]https://garrysmods.org/download/8/button.png[/img][/url]",
     "ignore": [
-        "logo.*"
-    ], 
+        "logo.*",
+        ".git*",
+        "README.md"
+    ],
+    "logo": "logo.jpg",
     "tags": [
         "fun"
-    ], 
-    "title": "Soccerball", 
-    "type": "model", 
-    "workshopid": 293904092
+    ],
+    "title": "Soccer Ball Entity",
+    "type": "model",
+    "workshopid": 293904092.0
 }
