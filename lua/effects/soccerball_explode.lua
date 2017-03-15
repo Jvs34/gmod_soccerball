@@ -2,6 +2,7 @@ AddCSLuaFile()
 
 function EFFECT:Init( data )
 	
+	local pressure = data:GetScale()
 	local vOffset = data:GetOrigin()
 	
 	util.ScreenShake( vOffset , 10 , 0.1, 0.1, 150 )
@@ -13,13 +14,13 @@ function EFFECT:Init( data )
 	
 		for i = 1 , NumParticles do
 		
-			local Pos = Vector( math.Rand(-1,1), math.Rand(-1,1), math.Rand(-1,1) )
+			local Pos = Vector( math.Rand( -1 , 1 ), math.Rand( -1 , 1 ), math.Rand( -1 , 1 ) )
 			local Color = ( b ) and color_white or color_black
 			local particle = emitter:Add( "particles/balloon_bit", vOffset + Pos * 16 )
 			b = not b
-			if (particle) then
+			if particle then
 				
-				particle:SetVelocity( Pos * 500 )
+				particle:SetVelocity( Pos * ( 250 + 250 * pressure )  )
 				
 				particle:SetLifeTime( 0 )
 				particle:SetDieTime( 10 )
@@ -33,11 +34,11 @@ function EFFECT:Init( data )
 				particle:SetRoll( math.Rand(0, 360) )
 				particle:SetRollDelta( math.Rand(-2, 2) )
 				
-				particle:SetAirResistance( 100 )
+				particle:SetAirResistance( 100 + ( 250 * ( 1 - pressure ) ) )
 				particle:SetGravity( Vector(0,0,-300) )
 				
-				local RandDarkness = math.Rand( 0.8, 1.0 )
-				particle:SetColor( Color.r*RandDarkness, Color.g*RandDarkness, Color.b*RandDarkness )
+				local randdarkness = math.Rand( 0.8, 1.0 )
+				particle:SetColor( Color.r*randdarkness, Color.g*randdarkness, Color.b*randdarkness )
 				
 				particle:SetCollide( true )
 				

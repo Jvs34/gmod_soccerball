@@ -14,6 +14,7 @@ ENT.AdminOnly = false
 
 if CLIENT then
 	ENT.HitMaterial = Material( util.DecalMaterial( "impact.metal" ) )
+	ENT.RenderGroup = RENDERGROUP_BOTH
 end
 
 function ENT:SpawnFunction( ply, tr )
@@ -31,6 +32,15 @@ end
 
 function ENT:SetupDataTables()
 	self:NetworkVar( "Float" , 0 , "LastImpact" )	--I made this into a dtvar because at some point I'll add some clientside animations for when the ball bounces
+	self:NetworkVar( "Float" , 1 , "Pressure" )
+	
+	self:NetworkVar( "Int" , 0 , "NumberOfHoles" )
+	
+	self:NetworkVar( "Vector", 0 , "AirHole1" )
+	self:NetworkVar( "Vector", 1 , "AirHole2" )
+	self:NetworkVar( "Vector", 2 , "AirHole3" )
+	
+	
 end
 
 function ENT:Initialize()
@@ -43,7 +53,8 @@ function ENT:Initialize()
 		self:PhysicsInit( SOLID_VPHYSICS )
 		self:SetMoveType( MOVETYPE_VPHYSICS )
 		self:SetSolid( SOLID_VPHYSICS )
-
+		
+		self:SetPressure( 1 )
 		self:SetTrigger( true )	--allow us to use touch,starttouch and whatever even if we can't collide with the player
 
 		local physobj =  self:GetPhysicsObject()
@@ -56,146 +67,157 @@ function ENT:Initialize()
 			physobj:Wake( )
 		end
 
+		self:StartMotionController()
 	end
 
 	self:SetCollisionGroup( COLLISION_GROUP_WEAPON )
 end
 
-function ENT:OnTakeDamage( dmginfo )
 
-	if self:Health() <= 0 then 
-		return 
-	end
-
-	self:TakePhysicsDamage( dmginfo )
-
-	self:SetHealth( self:Health() - dmginfo:GetDamage() )
-
-	if self:Health() <= 0 then
-
-		local effectdata = EffectData()
-		effectdata:SetOrigin( self:GetPos() )
-		util.Effect( "soccerball_explode", effectdata )
-
-		self:Remove()
-	end
-
-end
-
-function ENT:Use( activator )
-	if self:IsPlayerHolding() then 
-		return 
-	end
-	--todo, ask CanPickup or something?
-	if IsValid( activator ) and activator:IsPlayer() then
-		activator:PickupObject( self )
-	end
-end
-
-function ENT:PhysicsCollide( data, physobj )
-
-	if not SERVER then 
-		return 
-	end
-
-	if self:IsPlayerHolding() then 
-		return 
-	end
-
-	if self:GetLastImpact() < CurTime() and data.DeltaTime > 0.2 and data.OurOldVelocity:Length( ) >100 then
-		self:EmitSound( "Rubber.ImpactHard" )
-		self:SetLastImpact( CurTime() + 0.1 )
-	end
-
-end
-
-function ENT:PhysicsUpdate( physobj )
-	if not SERVER then 
-		return 
-	end
-
-	if self:IsPlayerHolding() then 
-		return 
-	end
-
-	--the gravity gun, + use and the physgun all fuck up these settings, set them back
-
-	physobj:SetMass( 10 )
-	physobj:SetBuoyancyRatio( 0.5 )
-	physobj:SetDamping( 0.25 , 1 )
-
-end
-
-
-
-function ENT:StartTouch( ent )
-
-	if not SERVER or not IsValid( ent ) or self:IsPlayerHolding() then 
-		return 
-	end
-
-	if ent:IsPlayer() and ent:GetMoveType() ~= MOVETYPE_WALK then
-		return 
-	end
-
-	local tr = self:GetTouchTrace()
-
-	local direction = tr.Normal
-
-	local normal = (ent:WorldSpaceCenter() - self:GetPos() ):GetNormal() * -1
-	local physobj = self:GetPhysicsObject()
-	local ourvel = self:GetVelocity()
-	local theirvel = ent:GetVelocity()
-
-
-	if IsValid( physobj ) and ( ent:IsPlayer() or ent:IsNPC() ) then
-
-		local aimvec = ent:EyeAngles()
-		aimvec.p = 0
-		aimvec = aimvec:Forward()
-		aimvec.z = 0
-
-		if aimvec:Dot( theirvel:GetNormal() ) < 0 then
-			theirvel = vector_origin
-			theirvel = normal * physobj:GetMass() * 15
-		end
-		--kick the ball!
-		if theirvel ~= vector_origin then
-			self:EmitSound( "Rubber.BulletImpact" )
-			physobj:SetVelocityInstantaneous( theirvel * 2.5 + Vector( 0, 0 , 15 * physobj:GetMass() )  )
-			self:SetLastImpact( CurTime() + 0.1 )
-		else --bounce the ball back
-			self:EmitSound( "Rubber.ImpactHard" )
-			physobj:SetVelocityInstantaneous( -1 * normal * ourvel:Dot( normal ) )
-		end
-		self:SetLastImpact( CurTime() + 0.1 ) --we just kicked the ball, suppress the bounce sound for a little while
-	end
-end
-
-
-
-function ENT:ImpactTrace( tr , dmgbits , customImpactName )
-	if CLIENT then
-		if bit.bor( dmgbits , DMG_BULLET ) ~= 0 then
-			util.DecalEx( self.HitMaterial, self, tr.HitPos , tr.Normal , color_white, 4,  4 )
-		end
-	end
-	return true
-end
 
 if SERVER then
-	--this code is not enabled, what it does is lag compensate everything back before the player moved, this way we can
-	--give a chance to laggy players to hit the soccerball, but since Kilburn hasn't implemented a filter to lagcompensation yet, this'll stay disabled
-	--we surely don't want to lag compensate a full server of 60+ people for EACH player each frame, no no
-	--if you really want to risk it, then uncomment this code.
+	function ENT:PhysicsSimulate( physobj , delta )
+		
+		return SIM_NOTHING
+	end
+	
+	function ENT:OnTakeDamage( dmginfo )
+		if self:IsEFlagSet( EFL_KILLME ) then
+			return
+		end
+		
+		--always take physics damage, but scale it by the pressure inside
+		dmginfo:SetDamageForce( dmginfo:GetDamageForce() * self:GetPressure() )
+		self:TakePhysicsDamage( dmginfo )
+		
+		local dmg = dmginfo:GetDamage()
+		
+		local healthtoset = math.Clamp( self:Health() - dmg , 0 , self:GetMaxHealth() )
+		
+		self:SetHealth( healthtoset )
 
-	--[[
-	hook.Add( "SetupMove" , "Soccerball lag comp", function( ply , mv , cmd)
-		ply:LagCompensation( true )
-	end)
+		local isoverkill = ( dmg >= ( self:GetMaxHealth() / 2 ) ) or ( healthtoset <= 0 )
 
-	hook.Add( "FinishMove","Soccerball lag comp", function( ply , mv , cmd)
-		ply:LagCompensation( false )
-	end)
-	]]
+		
+		--either overkill 
+		if ( isoverkill and not dmginfo:IsDamageType( DMG_BULLET ) ) or isoverkill then
+
+			local effectdata = EffectData()
+			effectdata:SetOrigin( self:GetPos() )
+			effectdata:SetScale( self:GetPressure() )
+			util.Effect( "soccerball_explode", effectdata )
+
+			self:Remove()
+		end
+
+	end
+
+	function ENT:Use( activator )
+		if self:IsPlayerHolding() then 
+			return 
+		end
+		--todo, ask CanPickup or something?
+		if IsValid( activator ) and activator:IsPlayer() then
+			activator:PickupObject( self )
+		end
+	end
+
+
+	function ENT:PhysicsCollide( data, physobj )
+
+
+		if self:IsPlayerHolding() then 
+			return 
+		end
+
+		if self:GetLastImpact() < CurTime() and data.DeltaTime > 0.2 and data.OurOldVelocity:Length() > 100 then
+			self:EmitSound( "Rubber.ImpactHard" )
+			self:SetLastImpact( CurTime() + 0.1 )
+		end
+
+	end
+
+	function ENT:PhysicsUpdate( physobj )
+		if self:IsPlayerHolding() then 
+			return 
+		end
+
+		--the gravity gun, + use and the physgun all fuck up these settings, set them back
+
+		physobj:SetMass( 10 )
+		physobj:SetBuoyancyRatio( 0.5 )
+		physobj:SetDamping( 0.25 , 1 )
+
+	end
+
+	--touch is not called when the physics object hits an entity, but rather when the collision bounds do, which
+	--is done with traces on the game side
+	function ENT:StartTouch( ent )
+
+		if not SERVER or not IsValid( ent ) or self:IsPlayerHolding() then 
+			return 
+		end
+		
+		--ignore players that might be noclipping or in a vehicle
+		if ent:IsPlayer() and ent:GetMoveType() ~= MOVETYPE_WALK then
+			return 
+		end
+
+		local tr = self:GetTouchTrace()
+
+		local direction = tr.Normal
+
+		local normal = (ent:WorldSpaceCenter() - self:GetPos() ):GetNormal() * -1
+		local physobj = self:GetPhysicsObject()
+		local ourvel = self:GetVelocity()
+		local theirvel = ent:GetVelocity()
+
+
+		if IsValid( physobj ) and ( ent:IsPlayer() or ent:IsNPC() ) then
+
+			local aimvec = ent:EyeAngles()
+			aimvec.p = 0
+			aimvec = aimvec:Forward()
+			aimvec.z = 0
+
+			if aimvec:Dot( theirvel:GetNormal() ) < 0 then
+				theirvel = vector_origin
+				theirvel = normal * physobj:GetMass() * 15
+			end
+			--kick the ball!
+			if theirvel ~= vector_origin then
+				self:EmitSound( "Rubber.BulletImpact" )
+				physobj:SetVelocityInstantaneous( theirvel * 2.5 + Vector( 0, 0 , 15 * physobj:GetMass() )  )
+				self:SetLastImpact( CurTime() + 0.1 )
+			else --bounce the ball back
+				self:EmitSound( "Rubber.ImpactHard" )
+				physobj:SetVelocityInstantaneous( -1 * normal * ourvel:Dot( normal ) )
+			end
+			self:SetLastImpact( CurTime() + 0.1 ) --we just kicked the ball, suppress the bounce sound for a little while
+		end
+	end
+
+else
+
+	function ENT:ImpactTrace( tr , dmgbits , customImpactName )
+		if CLIENT then
+			if bit.bor( dmgbits , DMG_BULLET ) ~= 0 then
+				util.DecalEx( self.HitMaterial, self, tr.HitPos , tr.Normal , color_white, 4,  4 )
+			end
+		end
+		return true
+	end
+	
+	function ENT:Draw( flags )
+		self:DrawModel()
+	end
+	
+	function ENT:DrawTranslucent()
+		self:DrawPressureStreams()
+	end
+	
+	function ENT:DrawPressureStreams()
+	
+	end
+	
 end
