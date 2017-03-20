@@ -11,7 +11,6 @@ ENT.Category = "Fun + Games"
 ENT.Author = "Jvs"
 ENT.Spawnable = true
 ENT.AdminOnly = false
-ENT.MaxAirHole = 4
 
 if CLIENT then
 	ENT.HitMaterial = Material( util.DecalMaterial( "impact.concrete" ) )
@@ -35,9 +34,6 @@ function ENT:SetupDataTables()
 	self:NetworkVar( "Float" , 0 , "LastImpact" )	--I made this into a dtvar because at some point I'll add some clientside animations for when the ball bounces
 	self:NetworkVar( "Float" , 1 , "PressureExpireStart" )
 	self:NetworkVar( "Float" , 2 , "PressureExpireEnd" )
-	
-	
-	self:NetworkVar( "Int" , 0 , "NumberOfHoles" )
 end
 
 
@@ -52,7 +48,7 @@ function ENT:Initialize()
 		self:PhysicsInit( SOLID_VPHYSICS )
 		self:SetMoveType( MOVETYPE_VPHYSICS )
 		self:SetSolid( SOLID_VPHYSICS )
-		
+
 		self:ResetPressure()
 		self:SetTrigger( true )	--allow us to use touch,starttouch and whatever even if we can't collide with the player
 
@@ -72,7 +68,7 @@ function ENT:Initialize()
 	self:SetCollisionGroup( COLLISION_GROUP_WEAPON )
 end
 
---[[ 
+--[[
 	I wanted to have this complicated system where the soccerball would lose pressure every frame but first off,
 	that's annoying to code for little to no benefit, and second, I can fake it off by just using a timed variable
 	that gets decreased everytime
@@ -80,7 +76,7 @@ end
 
 function ENT:GetPressure()
 	local pressure = math.Clamp( math.TimeFraction( self:GetPressureExpireEnd() , self:GetPressureExpireStart() , CurTime() ) , 0 , 1 )
-		
+
 	return pressure
 end
 
@@ -100,7 +96,7 @@ function ENT:OnRemove()
 			self.PressureLeakSound = nil
 		end
 	else
-	
+
 	end
 end
 
@@ -108,24 +104,24 @@ if SERVER then
 	function ENT:PhysicsSimulate( physobj , delta )
 		return SIM_NOTHING
 	end
-	
+
 	function ENT:OnTakeDamage( dmginfo )
 		if self:IsEFlagSet( EFL_KILLME ) then
 			return
 		end
-		
+
 		self:TakePhysicsDamage( dmginfo )
-		
+
 		local dmg = dmginfo:GetDamage()
-		
+
 		local healthtoset = math.Clamp( self:Health() - dmg , 0 , self:GetMaxHealth() )
-		
+
 		self:SetHealth( healthtoset )
 
 		local isoverkill = ( dmg >= ( self:GetMaxHealth() / 2 ) ) or ( healthtoset <= 0 )
 
-		
-		--either overkill 
+
+		--either overkill
 		if ( isoverkill and not dmginfo:IsDamageType( DMG_BULLET ) ) or isoverkill then
 
 			local effectdata = EffectData()
@@ -135,7 +131,7 @@ if SERVER then
 
 			self:Remove()
 		end
-		
+
 		--we haven't been killed yet, start to lose pressure if the damage was coming from a bullet
 		if not self:IsEFlagSet( EFL_KILLME ) and dmginfo:IsDamageType( DMG_BULLET ) then
 			if not self:IsLosingPressure() then
@@ -149,8 +145,8 @@ if SERVER then
 	end
 
 	function ENT:Use( activator )
-		if self:IsPlayerHolding() then 
-			return 
+		if self:IsPlayerHolding() then
+			return
 		end
 		--todo, ask CanPickup or something?
 		if IsValid( activator ) and activator:IsPlayer() then
@@ -162,8 +158,8 @@ if SERVER then
 	function ENT:PhysicsCollide( data, physobj )
 
 
-		if self:IsPlayerHolding() then 
-			return 
+		if self:IsPlayerHolding() then
+			return
 		end
 
 		if self:GetLastImpact() < CurTime() and data.DeltaTime > 0.2 and data.OurOldVelocity:Length() > 100 then
@@ -174,8 +170,8 @@ if SERVER then
 	end
 
 	function ENT:PhysicsUpdate( physobj )
-		if self:IsPlayerHolding() then 
-			return 
+		if self:IsPlayerHolding() then
+			return
 		end
 
 		--the gravity gun, + use and the physgun all fuck up these settings, set them back
@@ -190,20 +186,20 @@ if SERVER then
 	--is done with traces on the game side
 	function ENT:StartTouch( ent )
 
-		if not SERVER or not IsValid( ent ) or self:IsPlayerHolding() then 
-			return 
+		if not SERVER or not IsValid( ent ) or self:IsPlayerHolding() then
+			return
 		end
-		
+
 		--ignore players that might be noclipping or in a vehicle
 		if ent:IsPlayer() and ent:GetMoveType() ~= MOVETYPE_WALK then
-			return 
+			return
 		end
 
 		local tr = self:GetTouchTrace()
 		local kickmultiplier = 1.5 + 1 * self:GetPressure()
 		local massmultiplier = 15
 		local direction = tr.Normal
-		
+
 		local normal = (ent:WorldSpaceCenter() - self:GetPos() ):GetNormal() * -1
 		local physobj = self:GetPhysicsObject()
 		local ourvel = self:GetVelocity()
@@ -235,16 +231,16 @@ if SERVER then
 	end
 
 else
-	
+
 	function ENT:Think()
 		self:HandleSound()
 	end
-	
+
 	function ENT:HandleSound()
 		if not self.PressureLeakSound then
 			self.PressureLeakSound = CreateSound( self , "PhysicsCannister.ThrusterLoop" )
 		end
-		
+
 		if self:IsLosingPressure() and self:GetPressure() ~= 0 then
 			self.PressureLeakSound:Play()
 			self.PressureLeakSound:ChangeVolume( self:GetPressure() )
@@ -252,24 +248,20 @@ else
 			self.PressureLeakSound:Stop()
 		end
 	end
-	
+
 	function ENT:ImpactTrace( tr , dmgbits , customImpactName )
 		if bit.bor( dmgbits , DMG_BULLET ) ~= 0 then
 			util.DecalEx( self.HitMaterial, self, tr.HitPos , tr.Normal , color_white, 1 ,  1 )
 		end
 		return true
 	end
-	
+
 	function ENT:Draw( flags )
 		self:DrawModel()
 	end
-	
+
 	function ENT:DrawTranslucent()
-		self:DrawAirStreams()
 	end
-	
-	function ENT:DrawAirStreams()
-	
-	end
-	
+
+
 end
