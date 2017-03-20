@@ -97,7 +97,7 @@ function ENT:OnRemove()
 	if CLIENT then
 		if self.PressureLeakSound then
 			self.PressureLeakSound:Stop()
-			 self.PressureLeakSound = nil
+			self.PressureLeakSound = nil
 		end
 	else
 	
