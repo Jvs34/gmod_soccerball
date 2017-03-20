@@ -93,6 +93,17 @@ function ENT:IsLosingPressure()
 	return self:GetPressureExpireStart() ~= 0 and self:GetPressureExpireEnd() ~= 0
 end
 
+function ENT:OnRemove()
+	if CLIENT then
+		if self.PressureLeakSound then
+			self.PressureLeakSound:Stop()
+			 self.PressureLeakSound = nil
+		end
+	else
+	
+	end
+end
+
 if SERVER then
 	function ENT:PhysicsSimulate( physobj , delta )
 		return SIM_NOTHING
