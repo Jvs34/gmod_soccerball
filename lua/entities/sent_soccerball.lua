@@ -17,14 +17,14 @@ if CLIENT then
 	ENT.RenderGroup = RENDERGROUP_BOTH
 end
 
-function ENT:SpawnFunction( ply, tr )
+function ENT:SpawnFunction( ply , tr , classname )
 	if not tr.Hit then
 		return
 	end
 
 	local spawnpos = tr.HitPos + tr.HitNormal * 25
 
-	local ent = ents.Create( "sent_soccerball" )
+	local ent = ents.Create( classname )
 	ent:SetPos( spawnpos )
 	ent:Spawn()
 	return ent
