@@ -15,6 +15,16 @@ ENT.AdminOnly = false
 if CLIENT then
 	ENT.HitMaterial = Material( util.DecalMaterial( "impact.concrete" ) )
 	ENT.RenderGroup = RENDERGROUP_BOTH
+else
+	ENT.CanPickupSoccerball = CreateConVar( 
+		"sv_pickupsoccerball" , 
+		"1", 
+		{ 
+			FCVAR_SERVER_CAN_EXECUTE, 
+			FCVAR_ARCHIVE 
+		}, 
+		"When true, it allows anyone to pickup the soccerball" 
+	)
 end
 
 function ENT:SpawnFunction( ply , tr , classname )
@@ -148,10 +158,21 @@ if SERVER then
 		if self:IsPlayerHolding() then
 			return
 		end
-		--todo, ask CanPickup or something?
+
 		if IsValid( activator ) and activator:IsPlayer() then
-			activator:PickupObject( self )
+			local canpickup = self.CanPickupSoccerball:GetBool()
+			
+			local hookval = hook.Run( "AllowPlayerPickup" , activator , self )
+			
+			if hookval ~= nil then
+				canpickup = hookval
+			end
+
+			if hookval ~= false then
+				activator:PickupObject( self )
+			end
 		end
+
 	end
 
 
